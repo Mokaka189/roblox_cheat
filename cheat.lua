@@ -5,6 +5,7 @@ local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local mouse = player:GetMouse() -- для Ctrl+Click TP
 
 -- Переменные
 local flying = false
@@ -15,6 +16,11 @@ local flySpeed = 50
 local walkSpeed = 16
 local mainFrameVisible = true
 local humanoid = nil
+
+-- НОВОЕ: переменные для Ctrl+Click TP и ESP
+local ctrlClickTpEnabled = true
+local espEnabled = false
+local espHighlights = {}
 
 -- Основное GUI
 local screenGui = Instance.new("ScreenGui")
@@ -77,7 +83,7 @@ local toggleCorner = Instance.new("UICorner")
 toggleCorner.CornerRadius = UDim.new(0, 30)
 toggleCorner.Parent = toggleBtn
 
--- Заголовок (теперь ИСПРАВЛЕН перетаскивание)
+-- Заголовок
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -110, 0, 40)
 title.Position = UDim2.new(0, 0, 0, 0)
@@ -99,8 +105,8 @@ local tabCorner = Instance.new("UICorner")
 tabCorner.CornerRadius = UDim.new(0, 8)
 tabCorner.Parent = tabFrame
 
-local tabs = {"📍 Телепорт", "✈️ Полёт", "⚡ Чит", "👥 Игроки"}
-local currentTab = 1
+-- НОВОЕ: добавил вкладку "ESP"
+local tabs = {"📍 Телепорт", "✈️ Полёт", "⚡ Чит", "👥 Игроки", "👁️ ESP"}
 local tabButtons = {}
 
 for i, tabName in ipairs(tabs) do
@@ -258,6 +264,33 @@ playersList.BorderSizePixel = 0
 playersList.ScrollBarThickness = 8
 playersList.Parent = playersFrame
 
+-- НОВОЕ: вкладка ESP
+local espFrame = Instance.new("Frame")
+espFrame.Size = UDim2.new(1, 0, 1, 0)
+espFrame.BackgroundTransparency = 1
+espFrame.Visible = false
+espFrame.Parent = contentFrame
+
+local espToggleBtn = Instance.new("TextButton")
+espToggleBtn.Size = UDim2.new(0.6, 0, 0, 50)
+espToggleBtn.Position = UDim2.new(0.2, 0, 0, 20)
+espToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+espToggleBtn.Text = "👁️ ESP ВЫКЛ"
+espToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+espToggleBtn.TextScaled = true
+espToggleBtn.Font = Enum.Font.GothamBold
+espToggleBtn.Parent = espFrame
+
+local espHint = Instance.new("TextLabel")
+espHint.Size = UDim2.new(1, 0, 0, 40)
+espHint.Position = UDim2.new(0, 0, 0, 80)
+espHint.BackgroundTransparency = 1
+espHint.Text = "ESP подсвечивает всех игроков.\nCtrl+ЛКМ: телепорт по клику."
+espHint.TextColor3 = Color3.fromRGB(200, 200, 200)
+espHint.TextScaled = true
+espHint.Font = Enum.Font.Gotham
+espHint.Parent = espFrame
+
 -- Стилизация углов
 local function addCorners(parent, radius)
     local corner = Instance.new("UICorner")
@@ -275,12 +308,13 @@ addCorners(jumpBtn, 10)
 addCorners(speedBoostBtn, 10)
 addCorners(walkSpeedSlider, 6)
 addCorners(playersList, 8)
+addCorners(espToggleBtn, 10)
 
 -- Анимация появления
 mainFrame.Size = UDim2.new(0, 0, 0, 0)
 TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Size = UDim2.new(0, 450, 0, 450)}):Play()
 
--- === ИСПРАВЛЕННОЕ ПЕРЕТАСКИВАНИЕ ОКНА ===
+-- Перетаскивание окна (как у тебя)
 local dragging = false
 local dragStart = nil
 local startPos = nil
@@ -298,7 +332,6 @@ title.InputBegan:Connect(function(input)
         dragStart = input.Position
         startPos = mainFrame.Position
         
-        -- Подписываемся на InputChanged только при перетаскивании
         local connection
         connection = UserInputService.InputChanged:Connect(updateInput)
         
@@ -311,7 +344,7 @@ title.InputBegan:Connect(function(input)
     end
 end)
 
--- Перетаскивание кнопки toggleBtn
+-- Перетаскивание toggleBtn
 local toggleDragging = false
 local toggleDragStart = nil
 local toggleStartPos = nil
@@ -323,9 +356,9 @@ toggleBtn.InputBegan:Connect(function(input)
         toggleStartPos = toggleBtn.Position
         
         local connection
-        connection = UserInputService.InputChanged:Connect(function(input)
-            if toggleDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                local delta = input.Position - toggleDragStart
+        connection = UserInputService.InputChanged:Connect(function(input2)
+            if toggleDragging and input2.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = input2.Position - toggleDragStart
                 toggleBtn.Position = UDim2.new(toggleStartPos.X.Scale, toggleStartPos.X.Offset + delta.X, toggleStartPos.Y.Scale, toggleStartPos.Y.Offset + delta.Y)
             end
         end)
@@ -339,7 +372,7 @@ toggleBtn.InputBegan:Connect(function(input)
     end
 end)
 
--- === СВОРАЧИВАНИЕ ===
+-- Сворачивание
 minimizeBtn.MouseButton1Click:Connect(function()
     mainFrameVisible = false
     mainFrame.Visible = false
@@ -352,7 +385,7 @@ toggleBtn.MouseButton1Click:Connect(function()
     toggleBtn.Visible = false
 end)
 
--- === МАСШТАБИРОВАНИЕ ===
+-- Масштабирование
 local scale = 1
 scaleBtn.MouseButton1Click:Connect(function()
     scale = scale == 1 and 1.5 or scale == 1.5 and 0.7 or 1
@@ -363,7 +396,7 @@ scaleBtn.MouseButton1Click:Connect(function()
     mainCorner.CornerRadius = UDim.new(0, 12 * scale)
 end)
 
--- === ВКЛАДКИ ===
+-- Вкладки
 for i, tabBtn in ipairs(tabButtons) do
     tabBtn.MouseButton1Click:Connect(function()
         for j, btn in ipairs(tabButtons) do
@@ -373,10 +406,11 @@ for i, tabBtn in ipairs(tabButtons) do
         flyFrame.Visible = i == 2
         cheatFrame.Visible = i == 3
         playersFrame.Visible = i == 4
+        espFrame.Visible = i == 5
     end)
 end
 
--- === ТЕЛЕПОРТ ===
+-- Телепорт по нику
 local function teleportPlayer(targetName, toMe)
     local targetPlayer = nil
     for _, p in pairs(Players:GetPlayers()) do
@@ -408,7 +442,11 @@ tpToMeBtn.MouseButton1Click:Connect(function()
     else
         tpTextBox.Text = "❌ Игрок не найден"
     end
-    game:GetService("Debris"):AddItem(function() tpTextBox.Text = "Ник игрока..." end, 2)
+    task.delay(2, function()
+        if tpTextBox then
+            tpTextBox.Text = "Ник игрока..."
+        end
+    end)
 end)
 
 tpToPlayerBtn.MouseButton1Click:Connect(function()
@@ -417,10 +455,14 @@ tpToPlayerBtn.MouseButton1Click:Connect(function()
     else
         tpTextBox.Text = "❌ Игрок не найден"
     end
-    game:GetService("Debris"):AddItem(function() tpTextBox.Text = "Ник игрока..." end, 2)
+    task.delay(2, function()
+        if tpTextBox then
+            tpTextBox.Text = "Ник игрока..."
+        end
+    end)
 end)
 
--- === ПОЛЁТ ===
+-- ПОЛЁТ
 local function toggleFly()
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -493,7 +535,7 @@ RunService.RenderStepped:Connect(function()
     if bodyGyro then bodyGyro.CFrame = camera.CFrame end
 end)
 
--- === БЕСКОНЕЧНЫЙ ПРЫЖОК ===
+-- Бесконечный прыжок
 jumpBtn.MouseButton1Click:Connect(function()
     infiniteJump = not infiniteJump
     jumpBtn.Text = infiniteJump and "🦘 ПРЫЖОК ВКЛ" or "🦘 ПРЫЖОК ВЫКЛ"
@@ -509,7 +551,7 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- === СЛАЙДЕР СКОРОСТИ ХОДЬБЫ ===
+-- Слайдер скорости ходьбы
 local walkDraggingSlider = false
 walkSpeedSlider.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -536,32 +578,29 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- === УСКОРЕНИЕ (кнопка теперь отдельно от слайдера) ===
+-- Ускорение
 speedBoostBtn.MouseButton1Click:Connect(function()
     speedBoost = not speedBoost
     speedBoostBtn.Text = speedBoost and "🚀 СКОР ВКЛ" or "🚀 СКОР ВЫКЛ"
     speedBoostBtn.BackgroundColor3 = speedBoost and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 100, 100)
 end)
 
--- Применение скорости ходьбы
-spawn(function()
+-- Применение WalkSpeed
+task.spawn(function()
     while true do
-        if speedBoost then
-            local char = player.Character
-            if char and char:FindFirstChild("Humanoid") then
-                char.Humanoid.WalkSpeed = walkSpeed * 2 -- Удваивает слайдер
-            end
-        else
-            local char = player.Character
-            if char and char:FindFirstChild("Humanoid") then
+        local char = player.Character
+        if char and char:FindFirstChild("Humanoid") then
+            if speedBoost then
+                char.Humanoid.WalkSpeed = walkSpeed * 2
+            else
                 char.Humanoid.WalkSpeed = walkSpeed
             end
         end
-        wait(0.1)
+        task.wait(0.1)
     end
 end)
 
--- === СПИСОК ИГРОКОВ ===
+-- СПИСОК ИГРОКОВ
 local function updatePlayersList()
     for _, child in pairs(playersList:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
@@ -588,6 +627,10 @@ local function updatePlayersList()
                     btn.BackgroundColor3 = j == 1 and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(70, 70, 80)
                 end
                 teleportFrame.Visible = true
+                flyFrame.Visible = false
+                cheatFrame.Visible = false
+                playersFrame.Visible = false
+                espFrame.Visible = false
             end)
             
             yPos = yPos + 45
@@ -625,4 +668,88 @@ player.CharacterAdded:Connect(function()
     walkSpeedLabel.Text = "Скорость ходьбы: 16"
 end)
 
-print("👑 СУПЕР АДМИН ПАНЕЛЬ ИСПРАВЛЕНА И УЛУЧШЕНА!")
+-----------------------------------------------------------------
+-- НОВОЕ: CTRL + CLICK TP
+-----------------------------------------------------------------
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if ctrlClickTpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            local char = player.Character
+            if char and char:FindFirstChild("HumanoidRootPart") and mouse.Hit then
+                local pos = mouse.Hit + Vector3.new(0, 3, 0)
+                char.HumanoidRootPart.CFrame = CFrame.new(pos.X, pos.Y, pos.Z)
+            end
+        end
+    end
+end)
+
+-----------------------------------------------------------------
+-- НОВОЕ: ESP PLAYER (Highlight)
+-----------------------------------------------------------------
+local function clearESP()
+    for plr, hl in pairs(espHighlights) do
+        if hl and hl.Parent then
+            hl:Destroy()
+        end
+    end
+    espHighlights = {}
+end
+
+local function applyESPToPlayer(plr)
+    if plr == player then return end
+    if not espEnabled then return end
+    if not plr.Character then return end
+    
+    if espHighlights[plr] and espHighlights[plr].Parent then
+        espHighlights[plr]:Destroy()
+    end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "AdminESP"
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.FillTransparency = 0.7
+    highlight.OutlineTransparency = 0
+    highlight.Adornee = plr.Character
+    highlight.Parent = plr.Character
+    espHighlights[plr] = highlight
+end
+
+local function refreshESP()
+    clearESP()
+    if not espEnabled then return end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        applyESPToPlayer(plr)
+    end
+end
+
+espToggleBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    if espEnabled then
+        espToggleBtn.Text = "👁️ ESP ВКЛ"
+        espToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+    else
+        espToggleBtn.Text = "👁️ ESP ВЫКЛ"
+        espToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    end
+    refreshESP()
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function()
+        task.wait(1)
+        if espEnabled then
+            applyESPToPlayer(plr)
+        end
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    if espHighlights[plr] then
+        espHighlights[plr]:Destroy()
+        espHighlights[plr] = nil
+    end
+end)
+
+print("👑 СУПЕР АДМИН ПАНЕЛЬ + CTRL+CLICK TP + ESP ГОТОВА!")
