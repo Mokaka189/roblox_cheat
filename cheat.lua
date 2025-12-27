@@ -12,6 +12,7 @@ local infiniteJump = false
 local speedBoost = false
 local bodyVelocity, bodyGyro = nil, nil
 local flySpeed = 50
+local walkSpeed = 16
 local mainFrameVisible = true
 local humanoid = nil
 
@@ -76,7 +77,7 @@ local toggleCorner = Instance.new("UICorner")
 toggleCorner.CornerRadius = UDim.new(0, 30)
 toggleCorner.Parent = toggleBtn
 
--- Заголовок
+-- Заголовок (теперь ИСПРАВЛЕН перетаскивание)
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -110, 0, 40)
 title.Position = UDim2.new(0, 0, 0, 0)
@@ -181,22 +182,22 @@ flyToggleBtn.TextScaled = true
 flyToggleBtn.Font = Enum.Font.GothamBold
 flyToggleBtn.Parent = flyFrame
 
-local speedLabel = Instance.new("TextLabel")
-speedLabel.Size = UDim2.new(1, 0, 0, 30)
-speedLabel.Position = UDim2.new(0, 0, 0, 60)
-speedLabel.BackgroundTransparency = 1
-speedLabel.Text = "Скорость: 50"
-speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedLabel.TextScaled = true
-speedLabel.Font = Enum.Font.Gotham
-speedLabel.Parent = flyFrame
+local flySpeedLabel = Instance.new("TextLabel")
+flySpeedLabel.Size = UDim2.new(1, 0, 0, 30)
+flySpeedLabel.Position = UDim2.new(0, 0, 0, 60)
+flySpeedLabel.BackgroundTransparency = 1
+flySpeedLabel.Text = "Скорость полёта: 50"
+flySpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+flySpeedLabel.TextScaled = true
+flySpeedLabel.Font = Enum.Font.Gotham
+flySpeedLabel.Parent = flyFrame
 
-local speedSlider = Instance.new("TextButton")
-speedSlider.Size = UDim2.new(1, 0, 0, 25)
-speedSlider.Position = UDim2.new(0, 0, 0, 95)
-speedSlider.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
-speedSlider.Text = ""
-speedSlider.Parent = flyFrame
+local flySpeedSlider = Instance.new("TextButton")
+flySpeedSlider.Size = UDim2.new(1, 0, 0, 25)
+flySpeedSlider.Position = UDim2.new(0, 0, 0, 95)
+flySpeedSlider.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+flySpeedSlider.Text = ""
+flySpeedSlider.Parent = flyFrame
 
 -- Вкладка Чит
 local cheatFrame = Instance.new("Frame")
@@ -225,6 +226,23 @@ speedBoostBtn.TextScaled = true
 speedBoostBtn.Font = Enum.Font.GothamBold
 speedBoostBtn.Parent = cheatFrame
 
+local walkSpeedLabel = Instance.new("TextLabel")
+walkSpeedLabel.Size = UDim2.new(1, 0, 0, 30)
+walkSpeedLabel.Position = UDim2.new(0, 0, 0, 60)
+walkSpeedLabel.BackgroundTransparency = 1
+walkSpeedLabel.Text = "Скорость ходьбы: 16"
+walkSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+walkSpeedLabel.TextScaled = true
+walkSpeedLabel.Font = Enum.Font.Gotham
+walkSpeedLabel.Parent = cheatFrame
+
+local walkSpeedSlider = Instance.new("TextButton")
+walkSpeedSlider.Size = UDim2.new(1, 0, 0, 25)
+walkSpeedSlider.Position = UDim2.new(0, 0, 0, 95)
+walkSpeedSlider.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+walkSpeedSlider.Text = ""
+walkSpeedSlider.Parent = cheatFrame
+
 -- Вкладка Игроки
 local playersFrame = Instance.new("Frame")
 playersFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -252,51 +270,80 @@ addCorners(tpTextBox, 8)
 addCorners(tpToMeBtn, 8)
 addCorners(tpToPlayerBtn, 8)
 addCorners(flyToggleBtn, 10)
-addCorners(speedSlider, 6)
+addCorners(flySpeedSlider, 6)
 addCorners(jumpBtn, 10)
 addCorners(speedBoostBtn, 10)
+addCorners(walkSpeedSlider, 6)
 addCorners(playersList, 8)
 
 -- Анимация появления
 mainFrame.Size = UDim2.new(0, 0, 0, 0)
 TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Size = UDim2.new(0, 450, 0, 450)}):Play()
 
--- === ПЕРЕТАСКИВАНИЕ ===
-local function setupDragging(obj)
-    local dragging = false
-    local dragStart, startPos = nil, nil
-    
-    obj.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = obj.Position
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
+-- === ИСПРАВЛЕННОЕ ПЕРЕТАСКИВАНИЕ ОКНА ===
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+local function updateInput(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
 end
 
-setupDragging(title)
-setupDragging(toggleBtn)
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        -- Подписываемся на InputChanged только при перетаскивании
+        local connection
+        connection = UserInputService.InputChanged:Connect(updateInput)
+        
+        UserInputService.InputEnded:Connect(function(inputEnd)
+            if inputEnd.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                connection:Disconnect()
+            end
+        end)
+    end
+end)
+
+-- Перетаскивание кнопки toggleBtn
+local toggleDragging = false
+local toggleDragStart = nil
+local toggleStartPos = nil
+
+toggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        toggleDragging = true
+        toggleDragStart = input.Position
+        toggleStartPos = toggleBtn.Position
+        
+        local connection
+        connection = UserInputService.InputChanged:Connect(function(input)
+            if toggleDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = input.Position - toggleDragStart
+                toggleBtn.Position = UDim2.new(toggleStartPos.X.Scale, toggleStartPos.X.Offset + delta.X, toggleStartPos.Y.Scale, toggleStartPos.Y.Offset + delta.Y)
+            end
+        end)
+        
+        UserInputService.InputEnded:Connect(function(inputEnd)
+            if inputEnd.UserInputType == Enum.UserInputType.MouseButton1 then
+                toggleDragging = false
+                connection:Disconnect()
+            end
+        end)
+    end
+end)
 
 -- === СВОРАЧИВАНИЕ ===
 minimizeBtn.MouseButton1Click:Connect(function()
     mainFrameVisible = false
     mainFrame.Visible = false
     toggleBtn.Visible = true
-    TweenService:Create(toggleBtn, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Size = UDim2.new(0, 60, 0, 60)}):Play()
 end)
 
 toggleBtn.MouseButton1Click:Connect(function()
@@ -326,7 +373,6 @@ for i, tabBtn in ipairs(tabButtons) do
         flyFrame.Visible = i == 2
         cheatFrame.Visible = i == 3
         playersFrame.Visible = i == 4
-        currentTab = i
     end)
 end
 
@@ -359,24 +405,19 @@ end
 tpToMeBtn.MouseButton1Click:Connect(function()
     if teleportPlayer(tpTextBox.Text, true) then
         tpTextBox.Text = "✅ Телепортирован к вам!"
-        TweenService:Create(tpToMeBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 255, 100)}):Play()
     else
         tpTextBox.Text = "❌ Игрок не найден"
     end
-    wait(1)
-    tpTextBox.Text = "Ник игрока..."
-    TweenService:Create(tpToMeBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 255, 100)}):Play()
+    game:GetService("Debris"):AddItem(function() tpTextBox.Text = "Ник игрока..." end, 2)
 end)
 
 tpToPlayerBtn.MouseButton1Click:Connect(function()
     if teleportPlayer(tpTextBox.Text, false) then
         tpTextBox.Text = "✅ Вы телепортированы!"
-        TweenService:Create(tpToPlayerBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 170, 0)}):Play()
     else
         tpTextBox.Text = "❌ Игрок не найден"
     end
-    wait(1)
-    tpTextBox.Text = "Ник игрока..."
+    game:GetService("Debris"):AddItem(function() tpTextBox.Text = "Ник игрока..." end, 2)
 end)
 
 -- === ПОЛЁТ ===
@@ -410,6 +451,28 @@ end
 
 flyToggleBtn.MouseButton1Click:Connect(toggleFly)
 
+-- Слайдер скорости полёта
+local flyDraggingSlider = false
+flySpeedSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        flyDraggingSlider = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        flyDraggingSlider = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if flyDraggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local percent = math.clamp((input.Position.X - flySpeedSlider.AbsolutePosition.X) / flySpeedSlider.AbsoluteSize.X, 0, 1)
+        flySpeed = 10 + (percent * 90)
+        flySpeedLabel.Text = "Скорость полёта: " .. math.floor(flySpeed)
+    end
+end)
+
 -- Обновление полёта
 RunService.RenderStepped:Connect(function()
     if not flying then return end
@@ -430,28 +493,6 @@ RunService.RenderStepped:Connect(function()
     if bodyGyro then bodyGyro.CFrame = camera.CFrame end
 end)
 
--- Слайдер скорости полёта
-local draggingSlider = false
-speedSlider.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        draggingSlider = true
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        draggingSlider = false
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local percent = math.clamp((input.Position.X - speedSlider.AbsolutePosition.X) / speedSlider.AbsoluteSize.X, 0, 1)
-        flySpeed = 10 + (percent * 90)
-        speedLabel.Text = "Скорость: " .. math.floor(flySpeed)
-    end
-end)
-
 -- === БЕСКОНЕЧНЫЙ ПРЫЖОК ===
 jumpBtn.MouseButton1Click:Connect(function()
     infiniteJump = not infiniteJump
@@ -468,25 +509,56 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- === УСКОРЕНИЕ ===
+-- === СЛАЙДЕР СКОРОСТИ ХОДЬБЫ ===
+local walkDraggingSlider = false
+walkSpeedSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        walkDraggingSlider = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        walkDraggingSlider = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if walkDraggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local percent = math.clamp((input.Position.X - walkSpeedSlider.AbsolutePosition.X) / walkSpeedSlider.AbsoluteSize.X, 0, 1)
+        walkSpeed = 16 + (percent * 184) -- 16-200
+        walkSpeedLabel.Text = "Скорость ходьбы: " .. math.floor(walkSpeed)
+        
+        local char = player.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.WalkSpeed = walkSpeed
+        end
+    end
+end)
+
+-- === УСКОРЕНИЕ (кнопка теперь отдельно от слайдера) ===
 speedBoostBtn.MouseButton1Click:Connect(function()
     speedBoost = not speedBoost
     speedBoostBtn.Text = speedBoost and "🚀 СКОР ВКЛ" or "🚀 СКОР ВЫКЛ"
     speedBoostBtn.BackgroundColor3 = speedBoost and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 100, 100)
-    
-    spawn(function()
-        while speedBoost do
+end)
+
+-- Применение скорости ходьбы
+spawn(function()
+    while true do
+        if speedBoost then
             local char = player.Character
             if char and char:FindFirstChild("Humanoid") then
-                humanoid = char.Humanoid
-                humanoid.WalkSpeed = 100
+                char.Humanoid.WalkSpeed = walkSpeed * 2 -- Удваивает слайдер
             end
-            wait(0.1)
+        else
+            local char = player.Character
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.WalkSpeed = walkSpeed
+            end
         end
-        if humanoid then
-            humanoid.WalkSpeed = 16
-        end
-    end)
+        wait(0.1)
+    end
 end)
 
 -- === СПИСОК ИГРОКОВ ===
@@ -512,10 +584,10 @@ local function updatePlayersList()
             
             playerBtn.MouseButton1Click:Connect(function()
                 tpTextBox.Text = p.Name
-                teleportFrame.Visible = true
                 for j, btn in ipairs(tabButtons) do
                     btn.BackgroundColor3 = j == 1 and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(70, 70, 80)
                 end
+                teleportFrame.Visible = true
             end)
             
             yPos = yPos + 45
@@ -536,12 +608,6 @@ tpTextBox.Focused:Connect(function()
     end
 end)
 
-tpTextBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        teleportPlayer(tpTextBox.Text, true)
-    end
-end)
-
 -- Очистка при респавне
 player.CharacterAdded:Connect(function()
     flying = false
@@ -555,6 +621,8 @@ player.CharacterAdded:Connect(function()
     jumpBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
     speedBoostBtn.Text = "🚀 СКОР ВЫКЛ"
     speedBoostBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    walkSpeed = 16
+    walkSpeedLabel.Text = "Скорость ходьбы: 16"
 end)
 
-print("👑 СУПЕР АДМИН ПАНЕЛЬ ЗАГРУЖЕНА! Готово к использованию!")
+print("👑 СУПЕР АДМИН ПАНЕЛЬ ИСПРАВЛЕНА И УЛУЧШЕНА!")
